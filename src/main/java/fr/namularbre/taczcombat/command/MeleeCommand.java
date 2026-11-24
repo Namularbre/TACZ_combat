@@ -31,7 +31,8 @@ import java.util.Map;
 
 /**
  * /melee join | leave
- * /melee start <map> | stop                          (admin)
+ * /melee vote [<map>]                               (tous : menu ou vote direct)
+ * /melee start [<map>] | stop                        (admin : sans map = vote, avec map = choix admin)
  * /melee map create|edit|delete|info <nom> | list    (admin)
  * /melee class [pick <classe>]                        (tous : menu ou choix direct)
  * /melee class save|delete|give <classe> | list     (admin)
@@ -44,6 +45,10 @@ public final class MeleeCommand {
 
     private static final SuggestionProvider<CommandSourceStack> MAP_NAMES = (ctx, builder) ->
             SharedSuggestionProvider.suggest(ArenaStore.get().all().stream().map(m -> m.name), builder);
+    private static final SuggestionProvider<CommandSourceStack> VOTE_OPTIONS = (ctx, builder) -> {
+        var vote = GameManager.get().currentVote();
+        return SharedSuggestionProvider.suggest(vote == null ? List.<String>of() : vote.options(), builder);
+    };
     private static final SuggestionProvider<CommandSourceStack> CLASS_NAMES = (ctx, builder) ->
             SharedSuggestionProvider.suggest(ClassStore.get().all().stream().map(c -> c.name), builder);
     private static final SuggestionProvider<CommandSourceStack> BANNED_IDS = (ctx, builder) ->
@@ -57,7 +62,11 @@ public final class MeleeCommand {
         dispatcher.register(Commands.literal("melee")
                 .then(Commands.literal("join").executes(MeleeCommand::join))
                 .then(Commands.literal("leave").executes(MeleeCommand::leave))
+                .then(Commands.literal("vote")
+                        .executes(MeleeCommand::voteMenu)
+                        .then(Commands.argument("map", StringArgumentType.word()).suggests(VOTE_OPTIONS).executes(MeleeCommand::voteFor)))
                 .then(Commands.literal("start").requires(s -> s.hasPermission(ADMIN))
+                        .executes(MeleeCommand::startVote)
                         .then(Commands.argument("map", StringArgumentType.word()).suggests(MAP_NAMES)
                                 .executes(MeleeCommand::start)))
                 .then(Commands.literal("stop").requires(s -> s.hasPermission(ADMIN))
@@ -138,11 +147,31 @@ public final class MeleeCommand {
 
     private static int stop(CommandContext<CommandSourceStack> ctx) {
         if (GameManager.get().stop("Arretee par un admin")) {
-            ok(ctx, "Partie arretee.");
+            ok(ctx, "Partie ou vote arrete. Pas de vote automatique : relance avec /melee start.");
             return 1;
         }
-        fail(ctx, "Aucune partie en cours.");
+        fail(ctx, "Aucune partie ni vote en cours.");
         return 0;
+    }
+
+    private static int startVote(CommandContext<CommandSourceStack> ctx) {
+        String error = GameManager.get().startVote(ctx.getSource().getServer());
+        if (error != null) {
+            fail(ctx, error);
+            return 0;
+        }
+        ok(ctx, "Vote lance (" + CombatRules.get().voteSeconds + " s).");
+        return 1;
+    }
+
+    private static int voteMenu(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        GameManager.get().openVoteMenu(ctx.getSource().getPlayerOrException());
+        return 1;
+    }
+
+    private static int voteFor(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        GameManager.get().vote(ctx.getSource().getPlayerOrException(), StringArgumentType.getString(ctx, "map"));
+        return 1;
     }
 
     // ---------------------------------------------------------------- maps

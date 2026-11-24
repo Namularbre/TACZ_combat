@@ -49,8 +49,10 @@ Un objet est interdit si son identifiant ou un identifiant de son NBT est dans l
 | Commande | Qui | Effet |
 |---|---|---|
 | `/melee join` / `/melee leave` | tous | s'inscrire / quitter |
-| `/melee start <map>` | admin | lance la partie avec les inscrits |
-| `/melee stop` | admin | arrête la partie |
+| `/melee vote` / `/melee vote <map>` | tous | voter pour la prochaine map (menu ou direct) |
+| `/melee start` | admin | lance un vote de map parmi les maps jouables |
+| `/melee start <map>` | admin | choisit la map et lance la partie tout de suite |
+| `/melee stop` | admin | arrête la partie ou le vote, sans relancer de vote automatique |
 | `/melee map list\|create\|edit\|delete\|info` | admin | gestion des maps |
 | `/melee class` / `/melee class pick <classe>` | tous | choisir sa classe |
 | `/melee class save\|delete\|give <classe>` / `list` | admin | gestion des classes |
@@ -60,9 +62,15 @@ Un objet est interdit si son identifiant ou un identifiant de son NBT est dans l
 
 Pendant une partie : mode aventure, mort sans perte d'objets puis réapparition sur le spawn le plus éloigné des adversaires, protection annulée dès qu'on tire ou frappe, retour automatique dans la zone si on en sort. À la fin, chacun retrouve sa position et son mode de jeu.
 
+## Enchaîner les maps
+
+- **Vote** : `/melee start` sans map ouvre un menu de vote à tous les inscrits (30 s). La map qui a le plus de voix gagne, une égalité est tirée au sort, et si personne ne vote la map est choisie au hasard. Voter inscrit automatiquement à la partie.
+- **Choix admin** : `/melee start <map>` lance directement la map, et annule un vote en cours.
+- **Enchaînement** : avec `autoVote` à 1, un nouveau vote se lance 10 s après chaque partie tant qu'il reste des inscrits. `/melee stop` coupe l'enchaînement.
+
 ## Fichiers
 
-- `config/tacz_combat/rules.json` : `scoreLimit` (30), `timeLimitSeconds` (600), `respawnDelaySeconds` (5), `spawnProtectionSeconds` (3). 0 = illimité pour le score et le temps.
+- `config/tacz_combat/rules.json` : `scoreLimit` (30), `timeLimitSeconds` (600), `respawnDelaySeconds` (5), `spawnProtectionSeconds` (3), `voteSeconds` (30), `autoVote` (1), `nextVoteDelaySeconds` (10). 0 = illimité pour le score et le temps.
 - `<monde>/tacz_combat/maps.json` : maps, bornes et spawns.
 
 ## Feuille de route
@@ -70,4 +78,4 @@ Pendant une partie : mode aventure, mort sans perte d'objets puis réapparition 
 - [x] Jalon 1 : bornes, spawns, partie minimale, règles
 - [x] Jalon 2 : classes (armes TACZ, accessoires, équipement) et menu de choix
 - [x] Jalon 3 : armes et gadgets bannis
-- [ ] Jalon 4 : vote des joueurs / choix admin de la map suivante
+- [x] Jalon 4 : vote des joueurs / choix admin de la map suivante

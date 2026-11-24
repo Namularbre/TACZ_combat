@@ -1,6 +1,10 @@
 package fr.namularbre.taczcombat.game;
 
 import fr.namularbre.taczcombat.arena.ArenaMap;
+import fr.namularbre.taczcombat.arena.ArenaStore;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
+import net.minecraftforge.server.ServerLifecycleHooks;
 import fr.namularbre.taczcombat.config.CombatRules;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
@@ -19,6 +23,10 @@ public final class GameManager {
     /** Classe preferee de chaque joueur, reprise au debut de chaque partie. */
     private final Map<UUID, String> preferredClass = new HashMap<>();
     private MeleeGame game;
+    private MapVote vote;
+    private final Random random = new Random();
+    /** Compte a rebours avant le vote automatique (en ticks), -1 si aucun n'est prevu. */
+    private int autoVoteCountdown = -1;
 
     public static GameManager get() {
         return INSTANCE;
@@ -33,11 +41,17 @@ public final class GameManager {
     }
 
     public boolean join(ServerPlayer player) {
-        return queue.add(player.getUUID());
+        boolean added = queue.add(player.getUUID());
+        if (added && vote != null) {
+            vote.show(player);
+            MapVoteMenu.open(player, vote);
+        }
+        return added;
     }
 
     public boolean leave(ServerPlayer player) {
         boolean wasQueued = queue.remove(player.getUUID());
+        if (vote != null) vote.hide(player);
         if (isRunning() && game.isParticipant(player)) {
             game.removePlayer(player);
             return true;
@@ -64,22 +78,125 @@ public final class GameManager {
         List<ServerPlayer> players = queuedPlayers(server);
         if (players.isEmpty()) return "Aucun joueur inscrit. Les joueurs rejoignent avec /melee join.";
 
+        cancelVote();
+        autoVoteCountdown = -1;
         game = new MeleeGame(server, level, map, CombatRules.get().copy());
         game.start(players);
         return null;
     }
 
+    /** Arret par un admin : termine la partie ou le vote en cours, sans relancer de vote automatique. */
     public boolean stop(String reason) {
-        if (!isRunning()) return false;
-        game.finish(reason);
+        boolean stopped = autoVoteCountdown > 0;
+        autoVoteCountdown = -1;
+        stopped |= cancelVote();
+        if (isRunning()) {
+            game.finish(reason);
+            stopped = true;
+        }
         game = null;
-        return true;
+        return stopped;
     }
 
     public void tick() {
-        if (game == null) return;
-        game.tick();
-        if (game.isFinished()) game = null;
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null) return;
+
+        if (game != null) {
+            game.tick();
+            if (game.isFinished()) {
+                game = null;
+                scheduleAutoVote(server);
+            }
+        }
+
+        if (autoVoteCountdown > 0 && --autoVoteCountdown == 0) {
+            autoVoteCountdown = -1;
+            String error = startVote(server);
+            if (error != null) broadcast(server, Component.literal(error).withStyle(ChatFormatting.RED));
+        }
+
+        if (vote != null && vote.tick()) {
+            MapVote finished = vote;
+            vote = null;
+            finished.close();
+            String winner = finished.winner(random);
+            broadcast(server, Component.literal("La map " + winner + " l'emporte (" + finished.count(winner) + " vote(s)) !")
+                    .withStyle(ChatFormatting.GOLD));
+            ArenaMap map = ArenaStore.get().get(winner);
+            String error = map == null ? "La map " + winner + " n'existe plus." : start(server, map);
+            if (error != null) broadcast(server, Component.literal(error).withStyle(ChatFormatting.RED));
+        }
+    }
+
+    // ---------------------------------------------------------------- vote de map
+
+    public MapVote currentVote() {
+        return vote;
+    }
+
+    /** Lance un vote parmi les maps jouables. Renvoie un message d'erreur, ou null si tout va bien. */
+    public String startVote(MinecraftServer server) {
+        if (isRunning()) return "Une partie est deja en cours.";
+        if (vote != null) return "Un vote est deja en cours.";
+        List<String> playable = new ArrayList<>();
+        for (ArenaMap map : ArenaStore.get().all()) {
+            if (map.isPlayable()) playable.add(map.name);
+        }
+        if (playable.isEmpty()) return "Aucune map jouable (il faut 2 bornes et au moins 1 spawn).";
+        List<ServerPlayer> players = queuedPlayers(server);
+        if (players.isEmpty()) return "Aucun joueur inscrit. Les joueurs rejoignent avec /melee join.";
+
+        autoVoteCountdown = -1;
+        vote = new MapVote(playable, CombatRules.get().voteSeconds);
+        for (ServerPlayer player : players) {
+            vote.show(player);
+            MapVoteMenu.open(player, vote);
+        }
+        broadcast(server, Component.literal("Vote de la prochaine map ! Clique sur une map ou tape /melee vote.")
+                .withStyle(ChatFormatting.GREEN));
+        return null;
+    }
+
+    /** Vote d'un joueur. Il s'inscrit automatiquement a la partie s'il ne l'etait pas. */
+    public void vote(ServerPlayer player, String mapName) {
+        if (vote == null) {
+            player.sendSystemMessage(Component.literal("Aucun vote en cours.").withStyle(ChatFormatting.RED));
+            return;
+        }
+        if (!vote.vote(player.getUUID(), mapName)) {
+            player.sendSystemMessage(Component.literal("Cette map n'est pas dans le vote.").withStyle(ChatFormatting.RED));
+            return;
+        }
+        if (queue.add(player.getUUID())) vote.show(player);
+        player.sendSystemMessage(Component.literal("Vote pour " + mapName + " enregistre.").withStyle(ChatFormatting.GREEN));
+    }
+
+    public void openVoteMenu(ServerPlayer player) {
+        if (vote == null) {
+            player.sendSystemMessage(Component.literal("Aucun vote en cours.").withStyle(ChatFormatting.RED));
+            return;
+        }
+        MapVoteMenu.open(player, vote);
+    }
+
+    private boolean cancelVote() {
+        if (vote == null) return false;
+        vote.close();
+        vote = null;
+        return true;
+    }
+
+    private void scheduleAutoVote(MinecraftServer server) {
+        CombatRules rules = CombatRules.get();
+        if (rules.autoVote != 1 || queuedPlayers(server).isEmpty()) return;
+        autoVoteCountdown = Math.max(1, rules.nextVoteDelaySeconds * 20);
+        broadcast(server, Component.literal("Prochain vote de map dans " + rules.nextVoteDelaySeconds + " s.")
+                .withStyle(ChatFormatting.YELLOW));
+    }
+
+    private void broadcast(MinecraftServer server, Component message) {
+        for (ServerPlayer player : queuedPlayers(server)) player.sendSystemMessage(message);
     }
 
     /** Classe actuelle du joueur : celle de la partie en cours, sinon sa preference, sinon la premiere. */
@@ -107,6 +224,7 @@ public final class GameManager {
 
     public void onLogout(ServerPlayer player) {
         queue.remove(player.getUUID());
+        if (vote != null) vote.hide(player);
         if (isRunning() && game.isParticipant(player)) {
             game.removePlayer(player);
         }
@@ -115,6 +233,8 @@ public final class GameManager {
     public void reset() {
         queue.clear();
         preferredClass.clear();
+        cancelVote();
+        autoVoteCountdown = -1;
         game = null;
     }
 }
