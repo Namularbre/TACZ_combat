@@ -10,7 +10,12 @@ import fr.namularbre.taczcombat.arena.ArenaMap;
 import fr.namularbre.taczcombat.arena.ArenaStore;
 import fr.namularbre.taczcombat.config.CombatRules;
 import fr.namularbre.taczcombat.game.GameManager;
+import fr.namularbre.taczcombat.loadout.BanList;
 import fr.namularbre.taczcombat.loadout.ClassSelectMenu;
+import net.minecraft.commands.arguments.ResourceLocationArgument;
+import net.minecraft.world.InteractionHand;
+import java.util.ArrayList;
+import java.util.List;
 import fr.namularbre.taczcombat.loadout.ClassStore;
 import fr.namularbre.taczcombat.loadout.CombatClass;
 import net.minecraft.world.item.ItemStack;
@@ -30,6 +35,7 @@ import java.util.Map;
  * /melee map create|edit|delete|info <nom> | list    (admin)
  * /melee class [pick <classe>]                        (tous : menu ou choix direct)
  * /melee class save|delete|give <classe> | list     (admin)
+ * /melee ban add|remove <id> | hand | list            (admin)
  * /melee rules [set <regle> <valeur>]                (admin)
  * /melee reload                                      (admin)
  */
@@ -40,6 +46,8 @@ public final class MeleeCommand {
             SharedSuggestionProvider.suggest(ArenaStore.get().all().stream().map(m -> m.name), builder);
     private static final SuggestionProvider<CommandSourceStack> CLASS_NAMES = (ctx, builder) ->
             SharedSuggestionProvider.suggest(ClassStore.get().all().stream().map(c -> c.name), builder);
+    private static final SuggestionProvider<CommandSourceStack> BANNED_IDS = (ctx, builder) ->
+            SharedSuggestionProvider.suggest(BanList.get().all(), builder);
     private static final SuggestionProvider<CommandSourceStack> RULE_NAMES = (ctx, builder) ->
             SharedSuggestionProvider.suggest(CombatRules.RULES.keySet(), builder);
 
@@ -75,6 +83,13 @@ public final class MeleeCommand {
                                 .then(Commands.argument("name", StringArgumentType.word()).suggests(CLASS_NAMES).executes(MeleeCommand::classDelete)))
                         .then(Commands.literal("give").requires(s -> s.hasPermission(ADMIN))
                                 .then(Commands.argument("name", StringArgumentType.word()).suggests(CLASS_NAMES).executes(MeleeCommand::classGive))))
+                .then(Commands.literal("ban").requires(s -> s.hasPermission(ADMIN))
+                        .then(Commands.literal("list").executes(MeleeCommand::banList))
+                        .then(Commands.literal("hand").executes(MeleeCommand::banHand))
+                        .then(Commands.literal("add")
+                                .then(Commands.argument("id", ResourceLocationArgument.id()).executes(MeleeCommand::banAdd)))
+                        .then(Commands.literal("remove")
+                                .then(Commands.argument("id", ResourceLocationArgument.id()).suggests(BANNED_IDS).executes(MeleeCommand::banRemove))))
                 .then(Commands.literal("rules").requires(s -> s.hasPermission(ADMIN))
                         .executes(MeleeCommand::rulesShow)
                         .then(Commands.literal("set")
@@ -243,6 +258,16 @@ public final class MeleeCommand {
             fail(ctx, "Impossible pendant une partie : ton inventaire est celui de ta classe.");
             return 0;
         }
+        List<String> bannedItems = new ArrayList<>();
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            ItemStack stack = player.getInventory().getItem(i);
+            if (BanList.get().isBanned(stack)) bannedItems.add(BanList.get().bannedIdIn(stack));
+        }
+        if (!bannedItems.isEmpty()) {
+            fail(ctx, "Ton inventaire contient des objets interdits : " + String.join(", ", bannedItems)
+                    + ". Retire-les ou utilise /melee ban remove.");
+            return 0;
+        }
         CombatClass c = CombatClass.fromInventory(name, player.getInventory());
         if (c.items.isEmpty()) {
             fail(ctx, "Ton inventaire est vide. Equipe d'abord les armes, munitions et armure de la classe.");
@@ -286,6 +311,52 @@ public final class MeleeCommand {
         return c;
     }
 
+    // ---------------------------------------------------------------- bannissements
+
+    private static int banList(CommandContext<CommandSourceStack> ctx) {
+        if (BanList.get().all().isEmpty()) {
+            ok(ctx, "Rien n'est interdit.");
+            return 0;
+        }
+        ok(ctx, "Interdits : " + String.join(", ", BanList.get().all()));
+        return BanList.get().all().size();
+    }
+
+    private static int banHand(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        ItemStack stack = ctx.getSource().getPlayerOrException().getItemInHand(InteractionHand.MAIN_HAND);
+        if (stack.isEmpty()) {
+            fail(ctx, "Tiens en main l'arme, l'accessoire ou l'objet a interdire.");
+            return 0;
+        }
+        return ban(ctx, BanList.idOf(stack));
+    }
+
+    private static int banAdd(CommandContext<CommandSourceStack> ctx) {
+        return ban(ctx, ResourceLocationArgument.getId(ctx, "id").toString());
+    }
+
+    private static int ban(CommandContext<CommandSourceStack> ctx, String id) {
+        if (!BanList.get().add(id)) {
+            fail(ctx, id + " est deja interdit.");
+            return 0;
+        }
+        long affected = ClassStore.get().all().stream()
+                .filter(c -> c.stacks().stream().anyMatch(BanList.get()::isBanned)).count();
+        String note = affected > 0 ? " " + affected + " classe(s) le contiennent : il leur sera retire en partie." : "";
+        ok(ctx, id + " est interdit." + note);
+        return 1;
+    }
+
+    private static int banRemove(CommandContext<CommandSourceStack> ctx) {
+        String id = ResourceLocationArgument.getId(ctx, "id").toString();
+        if (!BanList.get().remove(id)) {
+            fail(ctx, id + " n'etait pas interdit.");
+            return 0;
+        }
+        ok(ctx, id + " est de nouveau autorise.");
+        return 1;
+    }
+
     // ---------------------------------------------------------------- regles
 
     private static int rulesShow(CommandContext<CommandSourceStack> ctx) {
@@ -319,8 +390,9 @@ public final class MeleeCommand {
         }
         CombatRules.load();
         ClassStore.get().load();
+        BanList.get().load();
         ArenaStore.get().load(ctx.getSource().getServer());
-        ok(ctx, "Regles, classes et maps rechargees.");
+        ok(ctx, "Regles, classes, interdits et maps recharges.");
         return 1;
     }
 

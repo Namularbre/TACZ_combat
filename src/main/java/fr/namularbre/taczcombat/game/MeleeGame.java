@@ -3,6 +3,7 @@ package fr.namularbre.taczcombat.game;
 import fr.namularbre.taczcombat.arena.ArenaMap;
 import fr.namularbre.taczcombat.arena.SpawnPoint;
 import fr.namularbre.taczcombat.config.CombatRules;
+import fr.namularbre.taczcombat.loadout.BanList;
 import fr.namularbre.taczcombat.loadout.ClassSelectMenu;
 import fr.namularbre.taczcombat.loadout.ClassStore;
 import fr.namularbre.taczcombat.loadout.CombatClass;
@@ -114,6 +115,7 @@ public class MeleeGame {
             }
 
             keepInsideZone(player, p);
+            if (tick % 20 == 0) purgeBanned(player);
             if (p.protectedUntilTick > 0 && tick == p.protectedUntilTick) {
                 endProtection(player, p);
             }
@@ -282,7 +284,18 @@ public class MeleeGame {
             p.chosenClass = c.name;
         }
         c.applyTo(player.getInventory());
+        purgeBanned(player);
         player.inventoryMenu.broadcastChanges();
+    }
+
+    /** Retire les objets interdits de l'inventaire du joueur et le previent. */
+    private void purgeBanned(ServerPlayer player) {
+        List<String> removed = BanList.get().purge(player.getInventory());
+        if (!removed.isEmpty()) {
+            player.inventoryMenu.broadcastChanges();
+            player.sendSystemMessage(Component.literal("Objet(s) interdit(s) retire(s) : " + String.join(", ", removed))
+                    .withStyle(ChatFormatting.RED));
+        }
     }
 
     private void endProtection(ServerPlayer player, Participant p) {
