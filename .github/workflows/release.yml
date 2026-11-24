@@ -1,0 +1,43 @@
+name: Release
+
+# Pousser un tag vX.Y.Z (ex. : git tag v0.2.0 && git push origin v0.2.0)
+# compile le mod en version X.Y.Z et publie une release GitHub avec le jar.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: chmod +x gradlew
+
+      - name: Version depuis le tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Compilation
+        run: ./gradlew build -Pmod_version=${{ steps.version.outputs.version }} --stacktrace
+
+      - name: Creation de la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          JAR="build/libs/tacz_combat-${VERSION}.jar"
+          test -f "$JAR" || { echo "Jar introuvable : $JAR"; ls build/libs; exit 1; }
+          PRERELEASE=""
+          case "$VERSION" in *-*) PRERELEASE="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" "$JAR" \
+            --title "TACZ Combat $VERSION" \
+            --generate-notes \
+            $PRERELEASE
