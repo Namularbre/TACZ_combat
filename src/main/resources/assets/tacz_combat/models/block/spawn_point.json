@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/orientable",
+  "textures": {
+    "top": "tacz_combat:block/spawn_point_top",
+    "front": "tacz_combat:block/spawn_point_front",
+    "side": "tacz_combat:block/spawn_point_side"
+  }
+}
