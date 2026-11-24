@@ -32,6 +32,12 @@ public class CombatRules {
     public int respawnDelaySeconds = 5;
     /** Protection apres apparition, en secondes. Annulee des que le joueur tire ou frappe. */
     public int spawnProtectionSeconds = 3;
+    /** Duree du vote de map, en secondes. */
+    public int voteSeconds = 30;
+    /** 1 = un vote de map se lance tout seul apres chaque partie, 0 = non. */
+    public int autoVote = 1;
+    /** Pause entre la fin d'une partie et le vote automatique, en secondes. */
+    public int nextVoteDelaySeconds = 10;
 
     /** Regles modifiables par commande : nom -> (lecture, ecriture). */
     public static final Map<String, Rule> RULES = new LinkedHashMap<>();
@@ -42,6 +48,9 @@ public class CombatRules {
         RULES.put("scoreLimit", new Rule(r -> r.scoreLimit, (r, v) -> r.scoreLimit = v, "kills pour gagner (0 = illimite)"));
         RULES.put("timeLimit", new Rule(r -> r.timeLimitSeconds, (r, v) -> r.timeLimitSeconds = v, "duree en secondes (0 = illimite)"));
         RULES.put("respawnDelay", new Rule(r -> r.respawnDelaySeconds, (r, v) -> r.respawnDelaySeconds = v, "delai de reapparition en secondes"));
+        RULES.put("voteDuration", new Rule(r -> r.voteSeconds, (r, v) -> r.voteSeconds = v, "duree du vote de map en secondes"));
+        RULES.put("autoVote", new Rule(r -> r.autoVote, (r, v) -> r.autoVote = v, "1 = vote automatique apres chaque partie"));
+        RULES.put("nextVoteDelay", new Rule(r -> r.nextVoteDelaySeconds, (r, v) -> r.nextVoteDelaySeconds = v, "pause avant le vote automatique en secondes"));
         RULES.put("spawnProtection", new Rule(r -> r.spawnProtectionSeconds, (r, v) -> r.spawnProtectionSeconds = v, "protection au spawn en secondes"));
     }
 
