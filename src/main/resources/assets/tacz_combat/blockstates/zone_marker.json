@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "tacz_combat:block/zone_marker" }
+  }
+}

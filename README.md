@@ -6,9 +6,9 @@ Les maps sont des zones du monde délimitées par des bornes. Les admins y posen
 
 ## Prérequis
 
-- Java 17
+- Java 17 (Gradle le sélectionne tout seul via `gradle/gradle-daemon-jvm.properties`, il doit juste être installé)
 - Minecraft 1.20.1, Forge 47.x
-- TACZ 1.1.x (chargé automatiquement en dev depuis Modrinth, version dans `gradle.properties`)
+- TACZ 1.1.x ou 1.2.x (chargé automatiquement en dev depuis Modrinth, version dans `gradle.properties`)
 
 ## Lancer en dev
 

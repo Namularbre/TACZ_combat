@@ -1,0 +1,33 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="All Rights Reserved"
+
+[[mods]]
+modId="tacz_combat"
+version="0.1.0"
+displayName="TACZ Combat"
+authors="Namularbre"
+description='''
+Melee generale (free-for-all) pour TACZ : maps delimitees par des bornes, points de spawn, parties chronometrees.
+'''
+
+[[dependencies.tacz_combat]]
+    modId="forge"
+    mandatory=true
+    versionRange="[47,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.tacz_combat]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.20.1,1.21)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.tacz_combat]]
+    modId="tacz"
+    mandatory=true
+    versionRange="[1.1.0,)"
+    ordering="AFTER"
+    side="BOTH"
