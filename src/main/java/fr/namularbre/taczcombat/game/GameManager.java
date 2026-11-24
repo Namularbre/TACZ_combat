@@ -16,6 +16,8 @@ public final class GameManager {
     private static final GameManager INSTANCE = new GameManager();
 
     private final Set<UUID> queue = new LinkedHashSet<>();
+    /** Classe preferee de chaque joueur, reprise au debut de chaque partie. */
+    private final Map<UUID, String> preferredClass = new HashMap<>();
     private MeleeGame game;
 
     public static GameManager get() {
@@ -80,6 +82,29 @@ public final class GameManager {
         if (game.isFinished()) game = null;
     }
 
+    /** Classe actuelle du joueur : celle de la partie en cours, sinon sa preference, sinon la premiere. */
+    public String chosenClass(ServerPlayer player) {
+        if (isRunning() && game.isParticipant(player)) {
+            String inGame = game.chosenClassOf(player);
+            if (inGame != null) return inGame;
+        }
+        String preferred = preferredClass.get(player.getUUID());
+        if (fr.namularbre.taczcombat.loadout.ClassStore.get().get(preferred) != null) return preferred;
+        var first = fr.namularbre.taczcombat.loadout.ClassStore.get().first();
+        return first == null ? null : first.name;
+    }
+
+    public void chooseClass(ServerPlayer player, String className) {
+        preferredClass.put(player.getUUID(), className);
+        if (isRunning() && game.isParticipant(player)) {
+            game.chooseClass(player, className);
+        } else {
+            player.sendSystemMessage(net.minecraft.network.chat.Component.literal(
+                    "Classe " + className + " choisie pour la prochaine partie.")
+                    .withStyle(net.minecraft.ChatFormatting.GREEN));
+        }
+    }
+
     public void onLogout(ServerPlayer player) {
         queue.remove(player.getUUID());
         if (isRunning() && game.isParticipant(player)) {
@@ -89,6 +114,7 @@ public final class GameManager {
 
     public void reset() {
         queue.clear();
+        preferredClass.clear();
         game = null;
     }
 }
