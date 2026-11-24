@@ -36,6 +36,14 @@ Les classes sont dans `config/tacz_combat/classes.json` (un objet par emplacemen
 
 Dès qu'au moins une classe existe, les parties se jouent avec les classes : l'inventaire de chaque joueur est mis de côté au début et rendu à la fin. Un menu de choix s'ouvre à chaque apparition. Choisir pendant la protection de spawn équipe la classe tout de suite, sinon elle s'applique à la réapparition suivante. `/melee class` rouvre le menu, `/melee class pick <classe>` choisit sans menu. On ne peut ni jeter ni ramasser d'objets en partie.
 
+## Interdire des armes et gadgets
+
+- `/melee ban hand` : interdit ce que tu tiens en main. Pour une arme TACZ, c'est le modèle (`GunId`, par ex. `tacz:ak47`) qui est interdit ; pour un accessoire son `AttachmentId`, pour une munition son `AmmoId`, sinon l'objet lui-même.
+- `/melee ban add <id>` / `/melee ban remove <id>` / `/melee ban list`.
+- Liste dans `config/tacz_combat/banned.json`.
+
+Un objet est interdit si son identifiant ou un identifiant de son NBT est dans la liste : une arme qui porte un accessoire interdit est donc interdite aussi. En partie, les objets interdits sont retirés de l'inventaire (au spawn et chaque seconde) et ne peuvent pas être utilisés. `/melee class save` refuse un inventaire qui en contient.
+
 ## Jouer
 
 | Commande | Qui | Effet |
@@ -46,6 +54,7 @@ Dès qu'au moins une classe existe, les parties se jouent avec les classes : l'i
 | `/melee map list\|create\|edit\|delete\|info` | admin | gestion des maps |
 | `/melee class` / `/melee class pick <classe>` | tous | choisir sa classe |
 | `/melee class save\|delete\|give <classe>` / `list` | admin | gestion des classes |
+| `/melee ban add\|remove <id>` / `hand` / `list` | admin | armes et gadgets interdits |
 | `/melee rules` / `/melee rules set <règle> <valeur>` | admin | règles |
 | `/melee reload` | admin | relit les fichiers JSON |
 
@@ -60,5 +69,5 @@ Pendant une partie : mode aventure, mort sans perte d'objets puis réapparition 
 
 - [x] Jalon 1 : bornes, spawns, partie minimale, règles
 - [x] Jalon 2 : classes (armes TACZ, accessoires, équipement) et menu de choix
-- [ ] Jalon 3 : armes et gadgets bannis
+- [x] Jalon 3 : armes et gadgets bannis
 - [ ] Jalon 4 : vote des joueurs / choix admin de la map suivante

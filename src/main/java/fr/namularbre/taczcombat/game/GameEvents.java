@@ -4,7 +4,9 @@ import fr.namularbre.taczcombat.TaczCombat;
 import fr.namularbre.taczcombat.arena.ArenaStore;
 import fr.namularbre.taczcombat.command.MeleeCommand;
 import fr.namularbre.taczcombat.config.CombatRules;
+import fr.namularbre.taczcombat.loadout.BanList;
 import fr.namularbre.taczcombat.loadout.ClassStore;
+import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.entity.item.ItemTossEvent;
 import net.minecraftforge.event.entity.player.EntityItemPickupEvent;
 import net.minecraft.server.level.ServerPlayer;
@@ -35,6 +37,7 @@ public final class GameEvents {
     public static void onServerStarted(ServerStartedEvent event) {
         CombatRules.load();
         ClassStore.get().load();
+        BanList.get().load();
         ArenaStore.get().load(event.getServer());
     }
 
@@ -101,6 +104,17 @@ public final class GameEvents {
     public static void onPickup(EntityItemPickupEvent event) {
         if (event.getEntity() instanceof ServerPlayer player && isInGame(player)) {
             event.setCanceled(true);
+        }
+    }
+
+    /** Un objet interdit ne peut pas etre utilise en partie (clic droit). */
+    @SubscribeEvent
+    public static void onUseItem(PlayerInteractEvent.RightClickItem event) {
+        if (event.getEntity() instanceof ServerPlayer player && isInGame(player)
+                && BanList.get().isBanned(event.getItemStack())) {
+            event.setCanceled(true);
+            player.displayClientMessage(net.minecraft.network.chat.Component.literal("Objet interdit dans cette partie")
+                    .withStyle(net.minecraft.ChatFormatting.RED), true);
         }
     }
 
