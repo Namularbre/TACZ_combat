@@ -10,6 +10,12 @@ Les maps sont des zones du monde délimitées par des bornes. Les admins y posen
 - Minecraft 1.20.1, Forge 47.x
 - TACZ 1.1.x ou 1.2.x (chargé automatiquement en dev depuis Modrinth, version dans `gradle.properties`)
 
+## Télécharger
+
+Le jar est publié dans les [Releases](https://github.com/Namularbre/TACZ_combat/releases). Pose-le dans `mods/` avec TACZ.
+
+Pour publier une version : `git tag v0.2.0 && git push origin v0.2.0`. La CI compile le mod en version `0.2.0` et crée la release avec le jar. Un tag avec un suffixe (`v0.2.0-beta.1`) donne une pré-release.
+
 ## Lancer en dev
 
 ```
