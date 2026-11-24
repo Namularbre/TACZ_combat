@@ -3,6 +3,10 @@ package fr.namularbre.taczcombat.game;
 import fr.namularbre.taczcombat.arena.ArenaMap;
 import fr.namularbre.taczcombat.arena.SpawnPoint;
 import fr.namularbre.taczcombat.config.CombatRules;
+import fr.namularbre.taczcombat.loadout.ClassSelectMenu;
+import fr.namularbre.taczcombat.loadout.ClassStore;
+import fr.namularbre.taczcombat.loadout.CombatClass;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
@@ -34,6 +38,8 @@ public class MeleeGame {
     private final Map<UUID, Participant> participants = new LinkedHashMap<>();
     private final ServerBossEvent timerBar;
     private final Random random = new Random();
+    /** Partie avec classes : l'inventaire est remplace par la classe choisie, puis rendu a la fin. */
+    private final boolean useClasses;
     private Objective objective;
     private int tick;
     private boolean finished;
@@ -43,6 +49,7 @@ public class MeleeGame {
         this.level = level;
         this.map = map;
         this.rules = rules;
+        this.useClasses = !ClassStore.get().isEmpty();
         this.timerBar = new ServerBossEvent(Component.literal(map.name), BossEvent.BossBarColor.RED, BossEvent.BossBarOverlay.PROGRESS);
     }
 
@@ -73,6 +80,10 @@ public class MeleeGame {
                     player.gameMode.getGameModeForPlayer(), player.level().dimension(),
                     player.position(), player.getYRot(), player.getXRot());
             participants.put(p.id, p);
+            if (useClasses) {
+                p.savedInventory = player.getInventory().save(new ListTag());
+                p.chosenClass = GameManager.get().chosenClass(player);
+            }
             scoreboard.getOrCreatePlayerScore(p.name, objective).setScore(0);
             timerBar.addPlayer(player);
             respawn(player, p);
@@ -229,6 +240,10 @@ public class MeleeGame {
         player.fallDistance = 0;
         p.state = Participant.State.ALIVE;
         p.lastSafePosition = player.position();
+        if (useClasses) {
+            applyClass(player, p);
+            ClassSelectMenu.open(player);
+        }
         if (rules.spawnProtectionSeconds > 0) {
             p.protectedUntilTick = tick + rules.spawnProtectionSeconds * 20;
             player.displayClientMessage(Component.literal("Protege " + rules.spawnProtectionSeconds + " s (annule si tu tires)")
@@ -236,6 +251,38 @@ public class MeleeGame {
         } else {
             p.protectedUntilTick = 0;
         }
+    }
+
+    public String chosenClassOf(ServerPlayer player) {
+        Participant p = participants.get(player.getUUID());
+        return p == null ? null : p.chosenClass;
+    }
+
+    /**
+     * Change la classe d'un joueur. Appliquee tout de suite s'il est encore protege
+     * (il vient d'apparaitre et n'a pas tire), sinon a sa prochaine reapparition.
+     */
+    void chooseClass(ServerPlayer player, String className) {
+        Participant p = participants.get(player.getUUID());
+        if (p == null || !useClasses) return;
+        p.chosenClass = className;
+        if (p.state == Participant.State.ALIVE && tick < p.protectedUntilTick) {
+            applyClass(player, p);
+            player.displayClientMessage(Component.literal("Classe " + className + " equipee").withStyle(ChatFormatting.GREEN), true);
+        } else {
+            player.sendSystemMessage(Component.literal("Classe " + className + " a ta prochaine reapparition.").withStyle(ChatFormatting.YELLOW));
+        }
+    }
+
+    private void applyClass(ServerPlayer player, Participant p) {
+        CombatClass c = ClassStore.get().get(p.chosenClass);
+        if (c == null) {
+            c = ClassStore.get().first();
+            if (c == null) return;
+            p.chosenClass = c.name;
+        }
+        c.applyTo(player.getInventory());
+        player.inventoryMenu.broadcastChanges();
     }
 
     private void endProtection(ServerPlayer player, Participant p) {
@@ -286,6 +333,11 @@ public class MeleeGame {
     private void restore(ServerPlayer player, Participant p) {
         ServerLevel target = server.getLevel(p.previousDimension);
         if (target == null) target = server.overworld();
+        if (player.containerMenu instanceof ClassSelectMenu) player.closeContainer();
+        if (p.savedInventory != null) {
+            player.getInventory().load(p.savedInventory);
+            player.inventoryMenu.broadcastChanges();
+        }
         player.setGameMode(p.previousGameMode);
         player.setHealth(player.getMaxHealth());
         player.clearFire();

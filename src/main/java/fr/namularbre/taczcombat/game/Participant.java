@@ -1,6 +1,7 @@
 package fr.namularbre.taczcombat.game;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
@@ -32,6 +33,10 @@ class Participant {
     /** Derniere position connue a l'interieur de la zone. */
     Vec3 lastSafePosition;
     BlockPos lastSpawn;
+    /** Inventaire d'avant la partie (seulement si des classes sont definies). */
+    ListTag savedInventory;
+    /** Classe choisie, appliquee a chaque reapparition. */
+    String chosenClass;
 
     Participant(UUID id, String name, GameType previousGameMode, ResourceKey<Level> previousDimension,
                 Vec3 previousPosition, float previousYaw, float previousPitch) {

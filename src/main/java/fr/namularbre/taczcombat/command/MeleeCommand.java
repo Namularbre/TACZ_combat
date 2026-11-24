@@ -10,6 +10,10 @@ import fr.namularbre.taczcombat.arena.ArenaMap;
 import fr.namularbre.taczcombat.arena.ArenaStore;
 import fr.namularbre.taczcombat.config.CombatRules;
 import fr.namularbre.taczcombat.game.GameManager;
+import fr.namularbre.taczcombat.loadout.ClassSelectMenu;
+import fr.namularbre.taczcombat.loadout.ClassStore;
+import fr.namularbre.taczcombat.loadout.CombatClass;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -24,6 +28,8 @@ import java.util.Map;
  * /melee join | leave
  * /melee start <map> | stop                          (admin)
  * /melee map create|edit|delete|info <nom> | list    (admin)
+ * /melee class [pick <classe>]                        (tous : menu ou choix direct)
+ * /melee class save|delete|give <classe> | list     (admin)
  * /melee rules [set <regle> <valeur>]                (admin)
  * /melee reload                                      (admin)
  */
@@ -32,6 +38,8 @@ public final class MeleeCommand {
 
     private static final SuggestionProvider<CommandSourceStack> MAP_NAMES = (ctx, builder) ->
             SharedSuggestionProvider.suggest(ArenaStore.get().all().stream().map(m -> m.name), builder);
+    private static final SuggestionProvider<CommandSourceStack> CLASS_NAMES = (ctx, builder) ->
+            SharedSuggestionProvider.suggest(ClassStore.get().all().stream().map(c -> c.name), builder);
     private static final SuggestionProvider<CommandSourceStack> RULE_NAMES = (ctx, builder) ->
             SharedSuggestionProvider.suggest(CombatRules.RULES.keySet(), builder);
 
@@ -56,6 +64,17 @@ public final class MeleeCommand {
                                 .then(Commands.argument("name", StringArgumentType.word()).suggests(MAP_NAMES).executes(MeleeCommand::mapDelete)))
                         .then(Commands.literal("info")
                                 .then(Commands.argument("name", StringArgumentType.word()).suggests(MAP_NAMES).executes(MeleeCommand::mapInfo))))
+                .then(Commands.literal("class")
+                        .executes(MeleeCommand::classMenu)
+                        .then(Commands.literal("pick")
+                                .then(Commands.argument("name", StringArgumentType.word()).suggests(CLASS_NAMES).executes(MeleeCommand::classPick)))
+                        .then(Commands.literal("list").executes(MeleeCommand::classList))
+                        .then(Commands.literal("save").requires(s -> s.hasPermission(ADMIN))
+                                .then(Commands.argument("name", StringArgumentType.word()).suggests(CLASS_NAMES).executes(MeleeCommand::classSave)))
+                        .then(Commands.literal("delete").requires(s -> s.hasPermission(ADMIN))
+                                .then(Commands.argument("name", StringArgumentType.word()).suggests(CLASS_NAMES).executes(MeleeCommand::classDelete)))
+                        .then(Commands.literal("give").requires(s -> s.hasPermission(ADMIN))
+                                .then(Commands.argument("name", StringArgumentType.word()).suggests(CLASS_NAMES).executes(MeleeCommand::classGive))))
                 .then(Commands.literal("rules").requires(s -> s.hasPermission(ADMIN))
                         .executes(MeleeCommand::rulesShow)
                         .then(Commands.literal("set")
@@ -183,6 +202,90 @@ public final class MeleeCommand {
         return 1;
     }
 
+    // ---------------------------------------------------------------- classes
+
+    private static int classMenu(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        ClassSelectMenu.open(ctx.getSource().getPlayerOrException());
+        return 1;
+    }
+
+    private static int classPick(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        CombatClass c = findClass(ctx, StringArgumentType.getString(ctx, "name"));
+        if (c == null) return 0;
+        GameManager.get().chooseClass(ctx.getSource().getPlayerOrException(), c.name);
+        return 1;
+    }
+
+    private static int classList(CommandContext<CommandSourceStack> ctx) {
+        if (ClassStore.get().isEmpty()) {
+            ok(ctx, "Aucune classe. Un admin en cree une avec /melee class save <nom>.");
+            return 0;
+        }
+        for (CombatClass c : ClassStore.get().all()) {
+            StringBuilder sb = new StringBuilder("- ").append(c.name).append(" : ");
+            boolean firstItem = true;
+            for (ItemStack stack : c.stacks()) {
+                if (!firstItem) sb.append(", ");
+                firstItem = false;
+                if (stack.getCount() > 1) sb.append(stack.getCount()).append(" x ");
+                sb.append(stack.getHoverName().getString());
+            }
+            String line = sb.toString();
+            ctx.getSource().sendSuccess(() -> Component.literal(line), false);
+        }
+        return ClassStore.get().all().size();
+    }
+
+    private static int classSave(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        String name = StringArgumentType.getString(ctx, "name");
+        ServerPlayer player = ctx.getSource().getPlayerOrException();
+        if (GameManager.get().isRunning() && GameManager.get().current().isParticipant(player)) {
+            fail(ctx, "Impossible pendant une partie : ton inventaire est celui de ta classe.");
+            return 0;
+        }
+        CombatClass c = CombatClass.fromInventory(name, player.getInventory());
+        if (c.items.isEmpty()) {
+            fail(ctx, "Ton inventaire est vide. Equipe d'abord les armes, munitions et armure de la classe.");
+            return 0;
+        }
+        boolean existed = ClassStore.get().get(name) != null;
+        ClassStore.get().put(c);
+        ok(ctx, "Classe " + name + (existed ? " mise a jour" : " creee") + " depuis ton inventaire (" + c.items.size() + " emplacements).");
+        return 1;
+    }
+
+    private static int classDelete(CommandContext<CommandSourceStack> ctx) {
+        String name = StringArgumentType.getString(ctx, "name");
+        if (!ClassStore.get().delete(name)) {
+            fail(ctx, "Classe inconnue : " + name);
+            return 0;
+        }
+        ok(ctx, "Classe " + name + " supprimee.");
+        return 1;
+    }
+
+    private static int classGive(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        CombatClass c = findClass(ctx, StringArgumentType.getString(ctx, "name"));
+        if (c == null) return 0;
+        ServerPlayer player = ctx.getSource().getPlayerOrException();
+        if (GameManager.get().isRunning() && GameManager.get().current().isParticipant(player)) {
+            fail(ctx, "Impossible pendant une partie.");
+            return 0;
+        }
+        for (ItemStack stack : c.stacks()) {
+            if (!player.getInventory().add(stack)) player.drop(stack, false);
+        }
+        player.inventoryMenu.broadcastChanges();
+        ok(ctx, "Objets de la classe " + c.name + " ajoutes a ton inventaire.");
+        return 1;
+    }
+
+    private static CombatClass findClass(CommandContext<CommandSourceStack> ctx, String name) {
+        CombatClass c = ClassStore.get().get(name);
+        if (c == null) fail(ctx, "Classe inconnue : " + name);
+        return c;
+    }
+
     // ---------------------------------------------------------------- regles
 
     private static int rulesShow(CommandContext<CommandSourceStack> ctx) {
@@ -215,8 +318,9 @@ public final class MeleeCommand {
             return 0;
         }
         CombatRules.load();
+        ClassStore.get().load();
         ArenaStore.get().load(ctx.getSource().getServer());
-        ok(ctx, "Regles et maps rechargees.");
+        ok(ctx, "Regles, classes et maps rechargees.");
         return 1;
     }
 

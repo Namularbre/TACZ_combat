@@ -26,6 +26,16 @@ Les maps sont des zones du monde délimitées par des bornes. Les admins y posen
 
 Casser une borne ou un spawn (en créatif) le retire de la map.
 
+## Créer une classe
+
+1. Vide ton inventaire, puis équipe-le comme la classe doit l'être : armes TACZ avec leurs accessoires (monte-les à l'établi TACZ), munitions, grenades, armure, main secondaire. La position dans l'inventaire est conservée.
+2. `/melee class save assaut` : enregistre ton inventaire comme classe `assaut`. Refaire la commande met la classe à jour.
+3. `/melee class list` pour vérifier, `/melee class give assaut` pour récupérer ses objets, `/melee class delete assaut` pour la supprimer.
+
+Les classes sont dans `config/tacz_combat/classes.json` (un objet par emplacement, au format SNBT).
+
+Dès qu'au moins une classe existe, les parties se jouent avec les classes : l'inventaire de chaque joueur est mis de côté au début et rendu à la fin. Un menu de choix s'ouvre à chaque apparition. Choisir pendant la protection de spawn équipe la classe tout de suite, sinon elle s'applique à la réapparition suivante. `/melee class` rouvre le menu, `/melee class pick <classe>` choisit sans menu. On ne peut ni jeter ni ramasser d'objets en partie.
+
 ## Jouer
 
 | Commande | Qui | Effet |
@@ -34,6 +44,8 @@ Casser une borne ou un spawn (en créatif) le retire de la map.
 | `/melee start <map>` | admin | lance la partie avec les inscrits |
 | `/melee stop` | admin | arrête la partie |
 | `/melee map list\|create\|edit\|delete\|info` | admin | gestion des maps |
+| `/melee class` / `/melee class pick <classe>` | tous | choisir sa classe |
+| `/melee class save\|delete\|give <classe>` / `list` | admin | gestion des classes |
 | `/melee rules` / `/melee rules set <règle> <valeur>` | admin | règles |
 | `/melee reload` | admin | relit les fichiers JSON |
 
@@ -47,6 +59,6 @@ Pendant une partie : mode aventure, mort sans perte d'objets puis réapparition 
 ## Feuille de route
 
 - [x] Jalon 1 : bornes, spawns, partie minimale, règles
-- [ ] Jalon 2 : classes (armes TACZ, accessoires, équipement) et menu de choix
+- [x] Jalon 2 : classes (armes TACZ, accessoires, équipement) et menu de choix
 - [ ] Jalon 3 : armes et gadgets bannis
 - [ ] Jalon 4 : vote des joueurs / choix admin de la map suivante

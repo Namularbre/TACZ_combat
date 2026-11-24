@@ -4,6 +4,9 @@ import fr.namularbre.taczcombat.TaczCombat;
 import fr.namularbre.taczcombat.arena.ArenaStore;
 import fr.namularbre.taczcombat.command.MeleeCommand;
 import fr.namularbre.taczcombat.config.CombatRules;
+import fr.namularbre.taczcombat.loadout.ClassStore;
+import net.minecraftforge.event.entity.item.ItemTossEvent;
+import net.minecraftforge.event.entity.player.EntityItemPickupEvent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.projectile.Projectile;
@@ -31,6 +34,7 @@ public final class GameEvents {
     @SubscribeEvent
     public static void onServerStarted(ServerStartedEvent event) {
         CombatRules.load();
+        ClassStore.get().load();
         ArenaStore.get().load(event.getServer());
     }
 
@@ -81,6 +85,28 @@ public final class GameEvents {
         if (event.getEntity() instanceof ServerPlayer target && game.isInvulnerable(target)) {
             event.setCanceled(true);
         }
+    }
+
+    /** Pas de jet d'objet en partie : l'objet revient dans l'inventaire. */
+    @SubscribeEvent
+    public static void onToss(ItemTossEvent event) {
+        if (!(event.getPlayer() instanceof ServerPlayer player) || !isInGame(player)) return;
+        event.setCanceled(true);
+        player.getInventory().add(event.getEntity().getItem().copy());
+        player.inventoryMenu.broadcastChanges();
+    }
+
+    /** Pas de ramassage en partie : chacun joue avec sa classe. */
+    @SubscribeEvent
+    public static void onPickup(EntityItemPickupEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player && isInGame(player)) {
+            event.setCanceled(true);
+        }
+    }
+
+    private static boolean isInGame(ServerPlayer player) {
+        MeleeGame game = GameManager.get().current();
+        return game != null && !game.isFinished() && game.isParticipant(player);
     }
 
     /** Un projectile (balle TACZ comprise) tire par un joueur protege annule sa protection. */
