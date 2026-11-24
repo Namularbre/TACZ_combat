@@ -42,14 +42,12 @@ minecraft {
 }
 
 repositories {
-    exclusiveContent {
-        forRepository {
-            maven {
-                name = 'Modrinth'
-                url = 'https://api.modrinth.com/maven'
-            }
-        }
-        filter {
+    // Pas de exclusiveContent ici : ForgeGradle publie la version "deobf" de TACZ
+    // dans son propre depot local avec le meme groupe, il doit pouvoir l'y trouver.
+    maven {
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+        content {
             includeGroup 'maven.modrinth'
         }
     }
@@ -80,3 +78,11 @@ jar {
 }
 
 jar.finalizedBy('reobfJar')
+
+// Verifie que toutes les dependances d'execution (dont TACZ) se resolvent. Utilise par la CI.
+tasks.register('checkRuntimeDeps') {
+    doLast {
+        configurations.runtimeClasspath.resolve()
+        println 'Dependances d\'execution OK'
+    }
+}
