@@ -38,11 +38,18 @@ public class CombatRules {
     public int autoVote = 1;
     /** Pause entre la fin d'une partie et le vote automatique, en secondes. */
     public int nextVoteDelaySeconds = 10;
+    /** 1 = les balles TACZ cassent les vitres (option DestroyGlass de TACZ), 0 = non. S'applique tout de suite. */
+    public int destroyGlass = 0;
 
     /** Regles modifiables par commande : nom -> (lecture, ecriture). */
     public static final Map<String, Rule> RULES = new LinkedHashMap<>();
 
-    public record Rule(Function<CombatRules, Integer> getter, BiConsumer<CombatRules, Integer> setter, String description) {}
+    /** {@code live} = la regle s'applique tout de suite, meme pendant une partie. */
+    public record Rule(Function<CombatRules, Integer> getter, BiConsumer<CombatRules, Integer> setter, String description, boolean live) {
+        public Rule(Function<CombatRules, Integer> getter, BiConsumer<CombatRules, Integer> setter, String description) {
+            this(getter, setter, description, false);
+        }
+    }
 
     static {
         RULES.put("scoreLimit", new Rule(r -> r.scoreLimit, (r, v) -> r.scoreLimit = v, "kills pour gagner (0 = illimite)"));
@@ -52,6 +59,7 @@ public class CombatRules {
         RULES.put("autoVote", new Rule(r -> r.autoVote, (r, v) -> r.autoVote = v, "1 = vote automatique apres chaque partie"));
         RULES.put("nextVoteDelay", new Rule(r -> r.nextVoteDelaySeconds, (r, v) -> r.nextVoteDelaySeconds = v, "pause avant le vote automatique en secondes"));
         RULES.put("spawnProtection", new Rule(r -> r.spawnProtectionSeconds, (r, v) -> r.spawnProtectionSeconds = v, "protection au spawn en secondes"));
+        RULES.put("destroyGlass", new Rule(r -> r.destroyGlass, (r, v) -> r.destroyGlass = v, "1/true = les balles cassent les vitres, 0/false = non", true));
     }
 
     public static CombatRules get() {

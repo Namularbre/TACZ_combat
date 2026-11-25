@@ -3,6 +3,7 @@ package fr.namularbre.taczcombat.game;
 import fr.namularbre.taczcombat.TaczCombat;
 import fr.namularbre.taczcombat.arena.ArenaStore;
 import fr.namularbre.taczcombat.command.MeleeCommand;
+import fr.namularbre.taczcombat.compat.TaczGlassGuard;
 import fr.namularbre.taczcombat.config.CombatRules;
 import fr.namularbre.taczcombat.loadout.BanList;
 import fr.namularbre.taczcombat.loadout.ClassStore;
@@ -36,6 +37,7 @@ public final class GameEvents {
     @SubscribeEvent
     public static void onServerStarted(ServerStartedEvent event) {
         CombatRules.load();
+        TaczGlassGuard.apply();
         ClassStore.get().load();
         BanList.get().load();
         ArenaStore.get().load(event.getServer());
@@ -46,12 +48,20 @@ public final class GameEvents {
         GameManager.get().stop("Arret du serveur");
         GameManager.get().reset();
         ArenaStore.get().unload();
+        TaczGlassGuard.restore();
     }
+
+    private static int glassGuardTicks;
 
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase == TickEvent.Phase.END) {
             GameManager.get().tick();
+            // La config TACZ peut etre rechargee depuis son fichier : on reapplique la regle toutes les 5 s.
+            if (++glassGuardTicks >= 100) {
+                glassGuardTicks = 0;
+                TaczGlassGuard.apply();
+            }
         }
     }
 

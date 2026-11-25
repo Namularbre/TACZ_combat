@@ -76,8 +76,14 @@ Pendant une partie : mode aventure, mort sans perte d'objets puis réapparition 
 
 ## Fichiers
 
-- `config/tacz_combat/rules.json` : `scoreLimit` (30), `timeLimitSeconds` (600), `respawnDelaySeconds` (5), `spawnProtectionSeconds` (3), `voteSeconds` (30), `autoVote` (1), `nextVoteDelaySeconds` (10). 0 = illimité pour le score et le temps.
+- `config/tacz_combat/rules.json` : `scoreLimit` (30), `timeLimitSeconds` (600), `respawnDelaySeconds` (5), `spawnProtectionSeconds` (3), `voteSeconds` (30), `autoVote` (1), `nextVoteDelaySeconds` (10), `destroyGlass` (0). 0 = illimité pour le score et le temps.
 - `<monde>/tacz_combat/maps.json` : maps, bornes et spawns.
+
+## Vitres et balles
+
+Par défaut, le mod empêche les balles TACZ de casser les vitres (`destroyGlass` = 0). Pour les laisser casser : `/melee rules set destroyGlass true`, et `false` pour revenir. Le changement s'applique tout de suite, même en pleine partie.
+
+La règle pilote l'option `DestroyGlass` de TACZ. Cette option est dans la config **common** de TACZ, `config/tacz-common.toml` à la racine du serveur, section `[ammo]`, et pas dans `saves/<monde>/serverconfig/tacz-server.toml`. Tant que `destroyGlass` vaut 0, le mod la force à `false` et la remet comme avant à l'arrêt du serveur. Les explosions des munitions explosives relèvent d'une autre option de TACZ, `ExplosiveAmmoDestroysBlock`.
 
 ## Feuille de route
 

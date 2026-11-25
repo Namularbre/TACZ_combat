@@ -1,13 +1,13 @@
 package fr.namularbre.taczcombat.command;
 
 import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import fr.namularbre.taczcombat.arena.ArenaMap;
 import fr.namularbre.taczcombat.arena.ArenaStore;
+import fr.namularbre.taczcombat.compat.TaczGlassGuard;
 import fr.namularbre.taczcombat.config.CombatRules;
 import fr.namularbre.taczcombat.game.GameManager;
 import fr.namularbre.taczcombat.loadout.BanList;
@@ -37,7 +37,7 @@ import java.util.Map;
  * /melee class [pick <classe>]                        (tous : menu ou choix direct)
  * /melee class save|delete|give <classe> | list     (admin)
  * /melee ban add|remove <id> | hand | list            (admin)
- * /melee rules [set <regle> <valeur>]                (admin)
+ * /melee rules [set <regle> <valeur>]                (admin, valeur : entier ou true/false)
  * /melee reload                                      (admin)
  */
 public final class MeleeCommand {
@@ -55,6 +55,8 @@ public final class MeleeCommand {
             SharedSuggestionProvider.suggest(BanList.get().all(), builder);
     private static final SuggestionProvider<CommandSourceStack> RULE_NAMES = (ctx, builder) ->
             SharedSuggestionProvider.suggest(CombatRules.RULES.keySet(), builder);
+    private static final SuggestionProvider<CommandSourceStack> RULE_VALUES = (ctx, builder) ->
+            SharedSuggestionProvider.suggest(List.of("true", "false", "0", "1"), builder);
 
     private MeleeCommand() {}
 
@@ -103,7 +105,7 @@ public final class MeleeCommand {
                         .executes(MeleeCommand::rulesShow)
                         .then(Commands.literal("set")
                                 .then(Commands.argument("rule", StringArgumentType.word()).suggests(RULE_NAMES)
-                                        .then(Commands.argument("value", IntegerArgumentType.integer(0))
+                                        .then(Commands.argument("value", StringArgumentType.word()).suggests(RULE_VALUES)
                                                 .executes(MeleeCommand::rulesSet)))))
                 .then(Commands.literal("reload").requires(s -> s.hasPermission(ADMIN))
                         .executes(MeleeCommand::reload)));
@@ -394,22 +396,48 @@ public final class MeleeCommand {
             int value = e.getValue().getter().apply(rules);
             ctx.getSource().sendSuccess(() -> Component.literal(e.getKey() + " = " + value + "  (" + e.getValue().description() + ")"), false);
         }
+        Boolean tacz = TaczGlassGuard.taczValue();
+        if (tacz != null) {
+            ctx.getSource().sendSuccess(() -> Component.literal("TACZ DestroyGlass actuel = " + tacz).withStyle(ChatFormatting.GRAY), false);
+        }
         return 1;
     }
 
     private static int rulesSet(CommandContext<CommandSourceStack> ctx) {
         String name = StringArgumentType.getString(ctx, "rule");
-        int value = IntegerArgumentType.getInteger(ctx, "value");
+        String raw = StringArgumentType.getString(ctx, "value");
         CombatRules.Rule rule = CombatRules.RULES.get(name);
         if (rule == null) {
             fail(ctx, "Regle inconnue : " + name + ". Regles : " + String.join(", ", CombatRules.RULES.keySet()));
             return 0;
         }
+        Integer value = parseRuleValue(raw);
+        if (value == null) {
+            fail(ctx, "Valeur invalide : " + raw + ". Attendu un entier >= 0, true ou false.");
+            return 0;
+        }
         rule.setter().accept(CombatRules.get(), value);
         CombatRules.save();
-        String note = GameManager.get().isRunning() ? " (s'applique des la prochaine partie)" : "";
+        TaczGlassGuard.apply();
+        String note = !rule.live() && GameManager.get().isRunning() ? " (s'applique des la prochaine partie)" : "";
         ok(ctx, name + " = " + value + note);
         return 1;
+    }
+
+    /** Entier >= 0, ou true/false (1/0). */
+    private static Integer parseRuleValue(String raw) {
+        switch (raw.toLowerCase(java.util.Locale.ROOT)) {
+            case "true", "on", "oui", "yes" -> { return 1; }
+            case "false", "off", "non", "no" -> { return 0; }
+            default -> {
+                try {
+                    int v = Integer.parseInt(raw);
+                    return v >= 0 ? v : null;
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+            }
+        }
     }
 
     private static int reload(CommandContext<CommandSourceStack> ctx) {
@@ -418,6 +446,7 @@ public final class MeleeCommand {
             return 0;
         }
         CombatRules.load();
+        TaczGlassGuard.apply();
         ClassStore.get().load();
         BanList.get().load();
         ArenaStore.get().load(ctx.getSource().getServer());
