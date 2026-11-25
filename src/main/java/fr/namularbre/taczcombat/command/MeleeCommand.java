@@ -56,6 +56,9 @@ public final class MeleeCommand {
     private static final SuggestionProvider<CommandSourceStack> RULE_NAMES = (ctx, builder) ->
             SharedSuggestionProvider.suggest(CombatRules.RULES.keySet(), builder);
 
+    private static final SuggestionProvider<CommandSourceStack> RULE_VALUES = (ctx, builder) ->
+            SharedSuggestionProvider.suggest(List.of("true", "false"), builder);
+
     private MeleeCommand() {}
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
@@ -103,7 +106,7 @@ public final class MeleeCommand {
                         .executes(MeleeCommand::rulesShow)
                         .then(Commands.literal("set")
                                 .then(Commands.argument("rule", StringArgumentType.word()).suggests(RULE_NAMES)
-                                        .then(Commands.argument("value", IntegerArgumentType.integer(0))
+                                        .then(Commands.argument("value", StringArgumentType.word()).suggests(RULE_VALUES)
                                                 .executes(MeleeCommand::rulesSet)))))
                 .then(Commands.literal("reload").requires(s -> s.hasPermission(ADMIN))
                         .executes(MeleeCommand::reload)));
@@ -399,11 +402,27 @@ public final class MeleeCommand {
 
     private static int rulesSet(CommandContext<CommandSourceStack> ctx) {
         String name = StringArgumentType.getString(ctx, "rule");
-        int value = IntegerArgumentType.getInteger(ctx, "value");
+        String raw = StringArgumentType.getString(ctx, "value");
         CombatRules.Rule rule = CombatRules.RULES.get(name);
         if (rule == null) {
             fail(ctx, "Regle inconnue : " + name + ". Regles : " + String.join(", ", CombatRules.RULES.keySet()));
             return 0;
+        }
+        int value;
+        if (raw.equalsIgnoreCase("true")) {
+            value = 1;
+        } else if (raw.equalsIgnoreCase("false")) {
+            value = 0;
+        } else {
+            try {
+                value = Integer.parseInt(raw);
+            } catch (NumberFormatException e) {
+                value = -1;
+            }
+            if (value < 0) {
+                fail(ctx, "Valeur invalide : " + raw + " (nombre >= 0, true ou false)");
+                return 0;
+            }
         }
         rule.setter().accept(CombatRules.get(), value);
         CombatRules.save();

@@ -1,5 +1,6 @@
 package fr.namularbre.taczcombat.game;
 
+import fr.namularbre.taczcombat.TaczCombat;
 import fr.namularbre.taczcombat.arena.ArenaMap;
 import fr.namularbre.taczcombat.arena.SpawnPoint;
 import fr.namularbre.taczcombat.config.CombatRules;
@@ -19,18 +20,27 @@ import net.minecraft.server.ServerScoreboard;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.BossEvent;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.scores.Objective;
 import net.minecraft.world.scores.Scoreboard;
 import net.minecraft.world.scores.criteria.ObjectiveCriteria;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.*;
 
 /** Une partie de melee generale (chacun pour soi) sur une map. */
 public class MeleeGame {
     private static final String OBJECTIVE = "tacz_combat_kills";
+    private static final ResourceLocation AMMO_BOX_ID = new ResourceLocation("tacz", "ammo_box");
+    /** Marque les boites de munitions donnees par la partie, pour les retirer a la fin. */
+    private static final String GIVEN_TAG = "TaczCombatGiven";
 
     private final MinecraftServer server;
     private final ServerLevel level;
@@ -245,6 +255,8 @@ public class MeleeGame {
         if (useClasses) {
             applyClass(player, p);
             ClassSelectMenu.open(player);
+        } else {
+            giveInfiniteAmmo(player);
         }
         if (rules.spawnProtectionSeconds > 0) {
             p.protectedUntilTick = tick + rules.spawnProtectionSeconds * 20;
@@ -285,6 +297,43 @@ public class MeleeGame {
         }
         c.applyTo(player.getInventory());
         purgeBanned(player);
+        giveInfiniteAmmo(player);
+        player.inventoryMenu.broadcastChanges();
+    }
+
+    /** Donne une boite de munitions creative TACZ (toutes munitions) si la regle infiniteAmmo est active. */
+    private void giveInfiniteAmmo(ServerPlayer player) {
+        if (rules.infiniteAmmo <= 0) return;
+        Inventory inventory = player.getInventory();
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            if (isGivenAmmoBox(inventory.getItem(i))) return;
+        }
+        Item box = ForgeRegistries.ITEMS.getValue(AMMO_BOX_ID);
+        if (box == null || box == Items.AIR) {
+            TaczCombat.LOGGER.warn("Objet {} introuvable : pas de munitions infinies", AMMO_BOX_ID);
+            return;
+        }
+        ItemStack stack = new ItemStack(box);
+        stack.getOrCreateTag().putBoolean("AllTypeCreative", true);
+        stack.getOrCreateTag().putBoolean(GIVEN_TAG, true);
+        if (!inventory.add(stack)) {
+            player.sendSystemMessage(Component.literal("Inventaire plein : pas de boite de munitions infinie.")
+                    .withStyle(ChatFormatting.RED));
+        }
+        player.inventoryMenu.broadcastChanges();
+    }
+
+    private static boolean isGivenAmmoBox(ItemStack stack) {
+        return !stack.isEmpty() && stack.hasTag() && stack.getTag().getBoolean(GIVEN_TAG);
+    }
+
+    /** Retire les boites de munitions donnees par la partie. */
+    private static void removeInfiniteAmmo(ServerPlayer player) {
+        Inventory inventory = player.getInventory();
+        for (int i = 0; i < inventory.getContainerSize(); i++) {
+            if (isGivenAmmoBox(inventory.getItem(i))) inventory.setItem(i, ItemStack.EMPTY);
+        }
+        if (isGivenAmmoBox(player.containerMenu.getCarried())) player.containerMenu.setCarried(ItemStack.EMPTY);
         player.inventoryMenu.broadcastChanges();
     }
 
@@ -347,6 +396,7 @@ public class MeleeGame {
         ServerLevel target = server.getLevel(p.previousDimension);
         if (target == null) target = server.overworld();
         if (player.containerMenu instanceof ClassSelectMenu) player.closeContainer();
+        removeInfiniteAmmo(player);
         if (p.savedInventory != null) {
             player.getInventory().load(p.savedInventory);
             player.inventoryMenu.broadcastChanges();

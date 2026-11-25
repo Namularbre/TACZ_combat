@@ -72,11 +72,12 @@ Pendant une partie : mode aventure, mort sans perte d'objets puis réapparition 
 
 - **Vote** : `/melee start` sans map ouvre un menu de vote à tous les inscrits (30 s). La map qui a le plus de voix gagne, une égalité est tirée au sort, et si personne ne vote la map est choisie au hasard. Voter inscrit automatiquement à la partie.
 - **Choix admin** : `/melee start <map>` lance directement la map, et annule un vote en cours.
+- **Munitions infinies** : avec `infiniteAmmo` à 1 (par défaut), chaque joueur reçoit une boîte de munitions créative TACZ (`tacz:ammo_box{AllTypeCreative:1b}`) à chaque apparition, et elle est retirée à la fin de la partie. Plus besoin de mettre des munitions dans les classes, le rechargement reste normal. `/melee rules set infiniteAmmo false` pour couper.
 - **Enchaînement** : avec `autoVote` à 1, un nouveau vote se lance 10 s après chaque partie tant qu'il reste des inscrits. `/melee stop` coupe l'enchaînement.
 
 ## Fichiers
 
-- `config/tacz_combat/rules.json` : `scoreLimit` (30), `timeLimitSeconds` (600), `respawnDelaySeconds` (5), `spawnProtectionSeconds` (3), `voteSeconds` (30), `autoVote` (1), `nextVoteDelaySeconds` (10). 0 = illimité pour le score et le temps.
+- `config/tacz_combat/rules.json` : `scoreLimit` (30), `timeLimitSeconds` (600), `respawnDelaySeconds` (5), `spawnProtectionSeconds` (3), `voteSeconds` (30), `autoVote` (1), `nextVoteDelaySeconds` (10), `infiniteAmmo` (1). 0 = illimité pour le score et le temps.
 - `<monde>/tacz_combat/maps.json` : maps, bornes et spawns.
 
 ## Feuille de route

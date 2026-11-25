@@ -38,6 +38,8 @@ public class CombatRules {
     public int autoVote = 1;
     /** Pause entre la fin d'une partie et le vote automatique, en secondes. */
     public int nextVoteDelaySeconds = 10;
+    /** 1 = chaque joueur recoit une boite de munitions creative TACZ pendant la partie, 0 = non. */
+    public int infiniteAmmo = 1;
 
     /** Regles modifiables par commande : nom -> (lecture, ecriture). */
     public static final Map<String, Rule> RULES = new LinkedHashMap<>();
@@ -51,6 +53,7 @@ public class CombatRules {
         RULES.put("voteDuration", new Rule(r -> r.voteSeconds, (r, v) -> r.voteSeconds = v, "duree du vote de map en secondes"));
         RULES.put("autoVote", new Rule(r -> r.autoVote, (r, v) -> r.autoVote = v, "1 = vote automatique apres chaque partie"));
         RULES.put("nextVoteDelay", new Rule(r -> r.nextVoteDelaySeconds, (r, v) -> r.nextVoteDelaySeconds = v, "pause avant le vote automatique en secondes"));
+        RULES.put("infiniteAmmo", new Rule(r -> r.infiniteAmmo, (r, v) -> r.infiniteAmmo = v, "1/true = boite de munitions infinie en partie"));
         RULES.put("spawnProtection", new Rule(r -> r.spawnProtectionSeconds, (r, v) -> r.spawnProtectionSeconds = v, "protection au spawn en secondes"));
     }
 
